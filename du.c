@@ -50,24 +50,20 @@ void DirTraverse(char* dirname)
 	struct dirent *direntryptr;
 	struct stat statBuf;
 
-	if((directptr = opendir(dirname)) == NULL)
-	{
-		ErrorHandler();
-	}
+	if((directptr = opendir(dirname)) == NULL) ErrorHandler();
 
 	while((direntryptr = readdir(directptr)) != NULL)
 	{
-		if(direntryptr->d_name[0] != '.')
+		if(strcmp(direntryptr->d_name, ".") != 0)
 		{
-			lstat(direntryptr->d_name,&statBuf);
+			strcpy(pathname,dirname);
+			lstat(pathname,&statBuf);
 			if (S_ISDIR(statBuf.st_mode))
 			{
-				strcpy(pathname, dirname);
 				strcat(pathname,"/");
 				strcat(pathname, direntryptr->d_name);
-				printf("%s\n", pathname);
+				printf("%ld\t%s\n",statBuf.st_size, pathname);
 				DirTraverse(pathname);
-
 			}
 		}	
 	}
