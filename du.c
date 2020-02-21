@@ -54,12 +54,13 @@ void DirTraverse(char* dirname)
 
 	while((direntryptr = readdir(directptr)) != NULL)
 	{
-		if(strcmp(direntryptr->d_name, ".") != 0)
+		if(strcmp(direntryptr->d_name, ".") != 0 &&
+			strcmp(direntryptr->d_name, "..") != 0 )
 		{
-			strcpy(pathname,dirname);
-			lstat(pathname,&statBuf);
+			lstat(direntryptr->d_name,&statBuf);
 			if (S_ISDIR(statBuf.st_mode))
 			{
+				strcpy(pathname, dirname);
 				strcat(pathname,"/");
 				strcat(pathname, direntryptr->d_name);
 				printf("%ld\t%s\n",statBuf.st_size, pathname);
