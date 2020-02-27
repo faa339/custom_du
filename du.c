@@ -8,22 +8,19 @@ the utility du. Usage is as follows:
 
 */
 #define _DEFAULT_SOURCE
-#define MAX_SIZE 4096
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
 #include <dirent.h>
-#include <unistd.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-
+#include <limits.h>
 
 
 void ErrorHandler(void);
-void DirTraverse(char* dirname);
-
+int DirTraverse(char* dirname);
+int IsSLink(char* dirname);
 
 int main(int argc, char** argv)
 {
@@ -35,9 +32,18 @@ int main(int argc, char** argv)
 	}
 	
 	char *directoryname = ".";
-	if(argc==2) directoryname = argv[1];
+	if(argc==2)
+	{
+		directoryname = argv[1];
+		if(IsSLink(directoryname))
+		{
+			printf("0\t%s\n",directoryname);
+			exit(EXIT_SUCCESS);
+		};	
+	};
 
-	DirTraverse(directoryname);
+	int directorysize = DirTraverse(directoryname);
+	printf("%d\t%s\n", directorysize, directoryname);
 	exit(EXIT_SUCCESS);
 }
 
@@ -47,33 +53,59 @@ void ErrorHandler(void)
 	exit(EXIT_FAILURE);
 }
 
-void DirTraverse(char* dirname)
+int IsSLink(char* dirname)
+{
+	struct stat testBuf;
+	lstat(dirname, &testBuf);
+	if(S_ISLNK(testBuf.st_mode)) 
+		return 1;
+
+	return 0;
+}
+
+int DirTraverse(char* dirname)
 {
 	DIR *directptr;
 	struct dirent *direntryptr;
 	struct stat statBuf;
-	char temp[MAX_SIZE];
+	char temp[PATH_MAX];
+	int totfilesize=0, dirsize = 0,stattest=0, dircount = 0;
 	//Base case: we've tried opening something that isnt a directory
-	if((directptr = opendir(dirname)) == NULL) 
-		return;
+	if((directptr = opendir(dirname)) == NULL)
+	{
+		stattest=lstat(dirname, &statBuf);
+		if(stattest<0) ErrorHandler();
+		if(S_ISLNK(statBuf.st_mode))
+			return 0;
+		return statBuf.st_blocks/2;
+	}
+	//Get the directory's size first before getting its entries sizes
+	stattest = lstat(dirname, & statBuf);
+	if(stattest<0) ErrorHandler();
+	totfilesize+= statBuf.st_blocks/2;
 
 	while((direntryptr = readdir(directptr)) != NULL)
 	{
-		if(strcmp(direntryptr->d_name, ".") != 0 &&
-			strcmp(direntryptr->d_name, "..") != 0 )
+		if(strcmp(direntryptr->d_name, "..") != 0
+			&& (strcmp(direntryptr->d_name,".") != 0))
 		{
 			strcpy(temp, dirname);
 			strcat(temp, "/");
 			strcat(temp, direntryptr->d_name);
-			lstat(temp, &statBuf);
-			
-			if (S_ISDIR(statBuf.st_mode))
-			{
-				DirTraverse(temp);
-				printf("%ld\t%s\n",(statBuf.st_blocks), temp);
-			}
+			stattest=lstat(temp, &statBuf);
+			if (stattest<0) ErrorHandler();
 
+
+			if (S_ISDIR(statBuf.st_mode)) 
+			{
+				dirsize = DirTraverse(temp);
+				dircount++;
+				printf("%d\t%s\n",dirsize, temp);
+
+			}
+			totfilesize+=(statBuf.st_blocks/2) + dirsize;
 		}
 	}
 	closedir(directptr);
+	return totfilesize - (4*dircount);
 }
