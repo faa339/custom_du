@@ -56,38 +56,40 @@ void ErrorHandler(void)
 int IsSLink(char* dirname)
 {
 	struct stat testBuf;
-	lstat(dirname, &testBuf);
+	if((lstat(dirname, &testBuf)) < 0) ErrorHandler();
 	if(S_ISLNK(testBuf.st_mode)) 
 		return 1;
-
 	return 0;
 }
 
 int DirTraverse(char* dirname)
 {
+	/*
+	This function traverses the filetree and adds up sizes of 
+	each directory and their contents 
+	*/
+
 	DIR *directptr;
 	struct dirent *direntryptr;
 	struct stat statBuf;
 	char temp[PATH_MAX];
-	int totfilesize=0, dirsize = 0,stattest=0, dircount = 0;
-	//Base case: we've tried opening something that isnt a directory
+	int totsize=0, subdirsize = 0,stattest=0;
+	
+	//Check if we've got a directory to begin with
+	//Could have been passed a regular file, symlink, or hardlink
 	if((directptr = opendir(dirname)) == NULL)
 	{
 		stattest=lstat(dirname, &statBuf);
 		if(stattest<0) ErrorHandler();
 		if(S_ISLNK(statBuf.st_mode))
 			return 0;
-		return statBuf.st_blocks/2;
+		return (statBuf.st_blocks/2);
 	}
-	//Get the directory's size first before getting its entries sizes
-	stattest = lstat(dirname, & statBuf);
-	if(stattest<0) ErrorHandler();
-	totfilesize+= statBuf.st_blocks/2;
-
+	
 	while((direntryptr = readdir(directptr)) != NULL)
 	{
 		if(strcmp(direntryptr->d_name, "..") != 0
-			&& (strcmp(direntryptr->d_name,".") != 0))
+			&& strcmp(direntryptr->d_name, ".") != 0)
 		{
 			strcpy(temp, dirname);
 			strcat(temp, "/");
@@ -95,17 +97,19 @@ int DirTraverse(char* dirname)
 			stattest=lstat(temp, &statBuf);
 			if (stattest<0) ErrorHandler();
 
-
-			if (S_ISDIR(statBuf.st_mode)) 
+			if (S_ISDIR(statBuf.st_mode) && !(S_ISLNK(statBuf.st_mode))) 
 			{
-				dirsize = DirTraverse(temp);
-				dircount++;
-				printf("%d\t%s\n",dirsize, temp);
-
+				subdirsize = DirTraverse(temp);
+				printf("%d\t%s\n",subdirsize, temp);
+				totsize+=subdirsize;
+			}else
+			{
+				totsize+=(statBuf.st_blocks/2);
 			}
-			totfilesize+=(statBuf.st_blocks/2) + dirsize;
 		}
 	}
+	if((lstat(".", &statBuf)) < 0) ErrorHandler();
+	totsize += (statBuf.st_blocks/2);
 	closedir(directptr);
-	return totfilesize - (4*dircount);
+	return totsize;
 }
