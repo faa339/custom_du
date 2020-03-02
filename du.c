@@ -19,6 +19,7 @@ the utility du. Usage is as follows:
 
 
 void ErrorHandler(void);
+void errorPrint(char* errorstr, char* dirname);
 int DirTraverse(char* dirname);
 int IsSLink(char* dirname);
 
@@ -55,6 +56,7 @@ void ErrorHandler(void)
 
 int IsSLink(char* dirname)
 {
+	//Function to check if file is symbolic link
 	struct stat testBuf;
 	if((lstat(dirname, &testBuf)) < 0) ErrorHandler();
 	if(S_ISLNK(testBuf.st_mode)) 
@@ -62,13 +64,26 @@ int IsSLink(char* dirname)
 	return 0;
 }
 
-int DirTraverse(char* dirname)
+void errorPrint(char* errorstr, char* dirname)
 {
 	/*
-	This function traverses the filetree and adds up sizes of 
-	each directory and their contents 
+	This function constructs an error string and prints it.
+	This is specifically for EACCESS error -- we don't have 
+	permission to open the directory in question
 	*/
+	strcpy(errorstr, "du: Cannot read directory '");
+	strcat(errorstr, dirname);
+	strcat(errorstr, "': ");
+	strcat(errorstr, strerror(errno));
+	fprintf(stderr,"%s\n", errorstr);
+}
 
+int DirTraverse(char* dirname)
+{
+	/*This function traverses the filetree and adds up sizes of 
+	each directory and their contents.
+	We're always returning statBuf.st_blocks/2 because du blocksize 
+	is different from regular system blocksize. */
 	DIR *directptr;
 	struct dirent *direntryptr;
 	struct stat statBuf;
@@ -79,15 +94,17 @@ int DirTraverse(char* dirname)
 	//Could have been passed a regular file, symlink, or hardlink
 	if((directptr = opendir(dirname)) == NULL)
 	{
+		//if we dont have permission to open the file, print the error
+		if(errno == EACCES) errorPrint(temp, dirname);
 		stattest=lstat(dirname, &statBuf);
 		if(stattest<0) ErrorHandler();
 		if(S_ISLNK(statBuf.st_mode))
 			return 0;
 		return (statBuf.st_blocks/2);
 	}
-	
+
 	while((direntryptr = readdir(directptr)) != NULL)
-	{
+	{ 	//Loop over all directory entries & add their sizes
 		if(strcmp(direntryptr->d_name, "..") != 0
 			&& strcmp(direntryptr->d_name, ".") != 0)
 		{
@@ -97,17 +114,17 @@ int DirTraverse(char* dirname)
 			stattest=lstat(temp, &statBuf);
 			if (stattest<0) ErrorHandler();
 
+			/*Important: had to separate the directory addition & the 
+			regular addition to prevent a double-add logical issue*/
 			if (S_ISDIR(statBuf.st_mode) && !(S_ISLNK(statBuf.st_mode))) 
 			{
 				subdirsize = DirTraverse(temp);
 				printf("%d\t%s\n",subdirsize, temp);
 				totsize+=subdirsize;
-			}else
-			{
-				totsize+=(statBuf.st_blocks/2);
-			}
+			}else totsize+=(statBuf.st_blocks/2);
 		}
 	}
+	//Add the size of the current directory after all other entries
 	if((lstat(".", &statBuf)) < 0) ErrorHandler();
 	totsize += (statBuf.st_blocks/2);
 	closedir(directptr);
