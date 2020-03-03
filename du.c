@@ -32,16 +32,20 @@ int main(int argc, char** argv)
 		exit(EXIT_FAILURE);
 	}
 	
-	char *directoryname = ".";
+	char *directoryname;
 	if(argc==2)
 	{
 		directoryname = argv[1];
+		if(strcmp(&directoryname[strlen(directoryname)-1], "/") == 0)
+		{//Checking to see if given an extra / then replacing it
+			directoryname[strlen(directoryname)-1] = 0;
+		}
 		if(IsSLink(directoryname))
 		{
 			printf("0\t%s\n",directoryname);
 			exit(EXIT_SUCCESS);
 		};	
-	};
+	}else directoryname = ".";
 
 	int directorysize = DirTraverse(directoryname);
 	printf("%d\t%s\n", directorysize, directoryname);
