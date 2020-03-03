@@ -72,7 +72,7 @@ void errorPrint(char* errorstr, char* dirname)
 {
 	/*
 	This function constructs an error string and prints it.
-	This is specifically for EACCESS error -- we don't have 
+	This is specifically for EACCES error -- we don't have 
 	permission to open the directory in question
 	*/
 	strcpy(errorstr, "du: Cannot read directory '");
